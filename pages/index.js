@@ -1,167 +1,127 @@
 import { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
-
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState('inventory');
   const [products, setProducts] = useState([]);
   const [sales, setSales] = useState([]);
-  const [loading, setLoading] = useState(true);
-
-  // Form states
+  const [activeTab, setActiveTab] = useState('inventory');
   const [name, setName] = useState('');
-  const [category, setCategory] = useState('زيت أساسي');
   const [stock, setStock] = useState('');
   const [price, setPrice] = useState('');
 
-  // Sales form
-  const [selectedProduct, setSelectedProduct] = useState('');
-  const [quantity, setQuantity] = useState('');
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 
   useEffect(() => {
-    fetchData();
-  }, []);
+    if (url && key) {
+      fetchData();
+    }
+  }, [url, key]);
 
-  async function fetchData() {
-    setLoading(true);
-    const { data: prodData } = await supabase.from('products').select('*');
-    const { data: saleData } = await supabase.from('sales').select('*');
-    if (prodData) setProducts(prodData);
-    if (saleData) setSales(saleData);
-    setLoading(false);
-  }
+  const fetchData = async () => {
+    try {
+      const resP = await fetch(`${url}/rest/v1/products?select=*`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` }
+      });
+      const dataP = await resP.json();
+      if (Array.isArray(dataP)) setProducts(dataP);
 
-  async function handleAddProduct(e) {
+      const resS = await fetch(`${url}/rest/v1/sales?select=*`, {
+        headers: { apikey: key, Authorization: `Bearer ${key}` }
+      });
+      const dataS = await resS.json();
+      if (Array.isArray(dataS)) setSales(dataS);
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
+  const handleAddProduct = async (e) => {
     e.preventDefault();
     if (!name || !stock || !price) return;
-    const { error } = await supabase.from('products').insert([
-      { name, category, stock: Number(stock), price: Number(price) }
-    ]);
-    if (!error) {
-      setName('');
-      setStock('');
-      setPrice('');
-      fetchData();
-    }
-  }
+    await fetch(`${url}/rest/v1/products`, {
+      method: 'POST',
+      headers: {
+        apikey: key,
+        Authorization: `Bearer ${key}`,
+        'Content-Type': 'application/json',
+        Prefer: 'return=minimal'
+      },
+      body: JSON.stringify({ name, stock: Number(stock), price: Number(price) })
+    });
+    setName('');
+    setStock('');
+    setPrice('');
+    fetchData();
+  };
 
-  async function handleAddSale(e) {
-    e.preventDefault();
-    if (!selectedProduct || !quantity) return;
-    const prod = products.find(p => p.id === Number(selectedProduct));
-    if (!prod || prod.stock < Number(quantity)) {
-      alert('الكمية غير متوفرة في المخزون!');
-      return;
-    }
-
-    const total = prod.price * Number(quantity);
-    const { error: saleErr } = await supabase.from('sales').insert([
-      { product_id: prod.id, product_name: prod.name, quantity: Number(quantity), total_price: total }
-    ]);
-
-    if (!saleErr) {
-      await supabase.from('products').update({ stock: prod.stock - Number(quantity) }).eq('id', prod.id);
-      setSelectedProduct('');
-      setQuantity('');
-      fetchData();
-    }
+  if (!url || !key) {
+    return (
+      <div style={{ textAlign: 'center', padding: '50px', fontFamily: 'sans-serif', direction: 'rtl' }}>
+        <h2>🧴 نظام إدارة العطورات MOKAÏ</h2>
+        <p style={{ color: 'red' }}>تنبيه: يلزم إضافة Environment Variables في Vercel وتفعيل Redeploy.</p>
+      </div>
+    );
   }
 
   return (
-    <div style={{ padding: '30px', fontFamily: 'system-ui, sans-serif', direction: 'rtl', backgroundColor: '#f8f9fa', minHeight: '100vh' }}>
-      <header style={{ marginBottom: '30px', textAlign: 'center' }}>
-        <h1 style={{ color: '#2c3e50', margin: '0 0 10px 0' }}>🧴 نظام إدارة العطورات MOKAÏ</h1>
-        <p style={{ color: '#7f8c8d' }}>منصة متابعة المخزون والمبيعات اليومية</p>
+    <div style={{ padding: '30px', fontFamily: 'sans-serif', direction: 'rtl', backgroundColor: '#f4f6f9', minHeight: '100vh' }}>
+      <header style={{ textAlign: 'center', marginBottom: '30px' }}>
+        <h1 style={{ color: '#1e293b' }}>🧴 نظام إدارة العطورات MOKAÏ</h1>
+        <p style={{ color: '#64748b' }}>متابعة المخزون والمبيعات</p>
       </header>
 
-      <nav style={{ display: 'flex', justifyContent: 'center', gap: '15px', marginBottom: '30px' }}>
-        <button 
-          onClick={() => setActiveTab('inventory')}
-          style={{ padding: '10px 25px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: activeTab === 'inventory' ? '#3498db' : '#e0e0e0', color: activeTab === 'inventory' ? '#fff' : '#333' }}>
-          📦 إدارة المخزون
-        </button>
-        <button 
-          onClick={() => setActiveTab('sales')}
-          style={{ padding: '10px 25px', borderRadius: '8px', border: 'none', cursor: 'pointer', fontWeight: 'bold', backgroundColor: activeTab === 'sales' ? '#2ecc71' : '#e0e0e0', color: activeTab === 'sales' ? '#fff' : '#333' }}>
-          💰 المبيعات
-        </button>
-      </nav>
+      <div style={{ display: 'flex', justifyContent: 'center', gap: '10px', marginBottom: '20px' }}>
+        <button onClick={() => setActiveTab('inventory')} style={{ padding: '10px 20px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'inventory' ? '#2563eb' : '#cbd5e1', color: '#fff', fontWeight: 'bold' }}>📦 المخزون</button>
+        <button onClick={() => setActiveTab('sales')} style={{ padding: '10px 20px', borderRadius: '6px', border: 'none', cursor: 'pointer', backgroundColor: activeTab === 'sales' ? '#16a34a' : '#cbd5e1', color: '#fff', fontWeight: 'bold' }}>💰 المبيعات</button>
+      </div>
 
-      {loading ? (
-        <p style={{ textAlign: 'center' }}>جاري تحميل البيانات...</p>
-      ) : activeTab === 'inventory' ? (
+      {activeTab === 'inventory' ? (
         <div>
-          <form onSubmit={handleAddProduct} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '15px' }}>
-            <input type="text" placeholder="اسم العطر / المادة" value={name} onChange={e => setName(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} required />
-            <select value={category} onChange={e => setCategory(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }}>
-              <option value="زيت أساسي">زيت أساسي</option>
-              <option value="كحول تركيب">كحول تركيب</option>
-              <option value="قنينة زجاجية">قنينة زجاجية</option>
-              <option value="عطر جاهز">عطر جاهز</option>
-            </select>
-            <input type="number" placeholder="الكمية (مل / قطعة)" value={stock} onChange={e => setStock(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} required />
-            <input type="number" step="0.1" placeholder="السعر (د.ت)" value={price} onChange={e => setPrice(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} required />
-            <button type="submit" style={{ backgroundColor: '#3498db', color: '#fff', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>إضافة للمخزون</button>
+          <form onSubmit={handleAddProduct} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '8px', marginBottom: '20px', display: 'flex', gap: '10px', flexWrap: 'wrap' }}>
+            <input type="text" placeholder="اسم المنتج/العطر" value={name} onChange={e => setName(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', flex: '1' }} required />
+            <input type="number" placeholder="الكمية" value={stock} onChange={e => setStock(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100px' }} required />
+            <input type="number" step="0.1" placeholder="السعر" value={price} onChange={e => setPrice(e.target.value)} style={{ padding: '8px', borderRadius: '4px', border: '1px solid #ccc', width: '100px' }} required />
+            <button type="submit" style={{ backgroundColor: '#2563eb', color: '#fff', border: 'none', padding: '8px 16px', borderRadius: '4px', cursor: 'pointer', fontWeight: 'bold' }}>إضافة</button>
           </form>
 
-          <table style={{ width: '100%', backgroundColor: '#fff', borderCollapse: 'collapse', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
+          <table style={{ width: '100%', backgroundColor: '#fff', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
             <thead>
-              <tr style={{ backgroundColor: '#34495e', color: '#fff' }}>
-                <th style={{ padding: '12px' }}>الاسم</th>
-                <th style={{ padding: '12px' }}>الصنف</th>
-                <th style={{ padding: '12px' }}>المخزون المتوفر</th>
-                <th style={{ padding: '12px' }}>السعر الفردي</th>
+              <tr style={{ backgroundColor: '#1e293b', color: '#fff' }}>
+                <th style={{ padding: '10px' }}>المنتج</th>
+                <th style={{ padding: '10px' }}>المخزون</th>
+                <th style={{ padding: '10px' }}>السعر</th>
               </tr>
             </thead>
             <tbody>
               {products.map(p => (
                 <tr key={p.id} style={{ borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                  <td style={{ padding: '12px' }}>{p.name}</td>
-                  <td style={{ padding: '12px' }}>{p.category}</td>
-                  <td style={{ padding: '12px', color: p.stock < 10 ? 'red' : 'green', fontWeight: 'bold' }}>{p.stock}</td>
-                  <td style={{ padding: '12px' }}>{p.price} د.ت</td>
+                  <td style={{ padding: '10px' }}>{p.name}</td>
+                  <td style={{ padding: '10px', color: p.stock < 10 ? 'red' : 'green', fontWeight: 'bold' }}>{p.stock}</td>
+                  <td style={{ padding: '10px' }}>{p.price} د.ت</td>
                 </tr>
               ))}
             </tbody>
           </table>
         </div>
       ) : (
-        <div>
-          <form onSubmit={handleAddSale} style={{ backgroundColor: '#fff', padding: '20px', borderRadius: '10px', boxShadow: '0 2px 5px rgba(0,0,0,0.1)', marginBottom: '30px', display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '15px' }}>
-            <select value={selectedProduct} onChange={e => setSelectedProduct(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} required>
-              <option value="">اختر العطر / المنتج...</option>
-              {products.map(p => (
-                <option key={p.id} value={p.id}>{p.name} (المتوفر: {p.stock})</option>
-              ))}
-            </select>
-            <input type="number" placeholder="الكمية المباعة" value={quantity} onChange={e => setQuantity(e.target.value)} style={{ padding: '10px', borderRadius: '5px', border: '1px solid #ccc' }} required />
-            <button type="submit" style={{ backgroundColor: '#2ecc71', color: '#fff', border: 'none', padding: '10px', borderRadius: '5px', cursor: 'pointer', fontWeight: 'bold' }}>تسجيل عملية بيع</button>
-          </form>
-
-          <table style={{ width: '100%', backgroundColor: '#fff', borderCollapse: 'collapse', borderRadius: '10px', overflow: 'hidden', boxShadow: '0 2px 5px rgba(0,0,0,0.1)' }}>
-            <thead>
-              <tr style={{ backgroundColor: '#27ae60', color: '#fff' }}>
-                <th style={{ padding: '12px' }}>المنتج</th>
-                <th style={{ padding: '12px' }}>الكمية</th>
-                <th style={{ padding: '12px' }}>المبلغ الإجمالي</th>
-                <th style={{ padding: '12px' }}>التاريخ</th>
+        <table style={{ width: '100%', backgroundColor: '#fff', borderCollapse: 'collapse', borderRadius: '8px', overflow: 'hidden' }}>
+          <thead>
+            <tr style={{ backgroundColor: '#16a34a', color: '#fff' }}>
+              <th style={{ padding: '10px' }}>المنتج</th>
+              <th style={{ padding: '10px' }}>الكمية</th>
+              <th style={{ padding: '10px' }}>المجموع</th>
+            </tr>
+          </thead>
+          <tbody>
+            {sales.map(s => (
+              <tr key={s.id} style={{ borderBottom: '1px solid #eee', textAlign: 'center' }}>
+                <td style={{ padding: '10px' }}>{s.product_name}</td>
+                <td style={{ padding: '10px' }}>{s.quantity}</td>
+                <td style={{ padding: '10px' }}>{s.total_price} د.ت</td>
               </tr>
-            </thead>
-            <tbody>
-              {sales.map(s => (
-                <tr key={s.id} style={{ borderBottom: '1px solid #eee', textAlign: 'center' }}>
-                  <td style={{ padding: '12px' }}>{s.product_name}</td>
-                  <td style={{ padding: '12px' }}>{s.quantity}</td>
-                  <td style={{ padding: '12px', fontWeight: 'bold' }}>{s.total_price} د.ت</td>
-                  <td style={{ padding: '12px' }}>{new Date(s.created_at).toLocaleDateString('ar-TN')}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+            ))}
+          </tbody>
+        </table>
       )}
     </div>
   );
